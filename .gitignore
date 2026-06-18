@@ -24,10 +24,6 @@ recordings/
 *.avi
 *.mp4
 
-# Model files (large, download separately)
-*.task
-*.pt
-*.onnx
 
 # OS files
 .DS_Store
