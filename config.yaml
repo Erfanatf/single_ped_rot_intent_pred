@@ -1,0 +1,53 @@
+# Camera
+camera_id: 0
+frame_width: 640
+frame_height: 480
+display_downscale: 1.0
+
+# Inference
+inference_width: 320
+inference_height: 256
+
+# Model (overridden by CLI)
+model: "mediapipe"
+mediapipe:
+  model_path: "pose_landmarker_heavy.task"
+yolo:
+  model_path: "yolov8n-pose.pt"
+
+# Buffer
+buffer_duration: 4.0          # seconds
+
+# Gait
+gait_contact_threshold: 0.05   # minimal foot vertical speed for stance
+
+# Posture
+posture_update_interval: 0.5   # seconds between posture re‑evaluation
+
+# Recording
+save_history: true             # save feature time‑series to CSV
+record_screen: true           # record the whole dashboard as video
+output_dir: "./recordings"
+
+# UI
+show_full_skeleton: true
+show_face_points: true
+update_plots_every_n_frames: 2  # plot refresh rate divider
+
+# Keypoint Kalman filter (optional)
+keypoint_filter: true           # set to false to disable
+keypoint_filter_dt: 0.033       # 1/fps
+keypoint_process_noise: 0.001
+keypoint_measurement_noise: 0.01
+keypoint_max_missing: 10
+
+# Fusion weights (higher = more influence)
+fusion_weights:
+  torso_pelvis_torsion: 0.0
+  foot_progression_difference: 0.0
+  step_width_asymmetry: 0.0
+  pelvis_yaw: 1.0
+  shoulder_yaw: 1.0
+  head_yaw: 0
+  com_lateral_shift: 0.0
+  arm_swing_asymmetry: 0.0

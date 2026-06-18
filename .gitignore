@@ -1,0 +1,35 @@
+cat > .gitignore << 'EOF'
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environment
+venv/
+rot_intent_pred_env/
+wheelhouse/
+
+# IDE
+.vscode/
+.idea/
+
+# Recordings & logs
+recordings/
+*.csv
+*.avi
+*.mp4
+
+# Model files (large, download separately)
+*.task
+*.pt
+*.onnx
+
+# OS files
+.DS_Store
+Thumbs.db
+EOF
