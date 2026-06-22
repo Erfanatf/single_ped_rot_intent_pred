@@ -17,13 +17,13 @@ class ComShift(BaseFeature):
         raw_val = com_x
         corrected = self.apply_ema_bias(raw_val)
 
-        threshold = 0.04
+        threshold = 2e-4
         conf = min(1.0, visibility.get('left_hip',0)*visibility.get('right_hip',0))
         if abs(corrected) < threshold:
             likelihood = 0.0
             side = 'none'
         else:
-            likelihood = min(1.0, abs(corrected)/0.15)
+            likelihood = min(1.0, abs(corrected))
             side = 'left' if corrected > 0 else 'right'
         likelihood *= conf
         return {'value':corrected, 'rotation_likelihood':likelihood,

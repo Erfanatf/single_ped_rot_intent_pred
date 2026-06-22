@@ -3,7 +3,7 @@ from .base_feature import BaseFeature
 
 
 class FootProgressionDifference(BaseFeature):
-    def __init__(self, ukf=None, fixed_threshold=0.15, ema_alpha=0.1):
+    def __init__(self, ukf=None, fixed_threshold=0.01, ema_alpha=0.1):
         super().__init__("foot_progression_difference", ema_alpha)
         self.ukf = ukf
         self.threshold = fixed_threshold
@@ -73,7 +73,7 @@ class FootProgressionDifference(BaseFeature):
             likelihood = 0.0
             side = "none"
         else:
-            likelihood = min(1.0, (abs(corrected) - thr) / thr)
+            likelihood = min(1.0, (abs(corrected)/thr))
             side = "left" if corrected > 0 else "right"
         likelihood *= conf
         return {
