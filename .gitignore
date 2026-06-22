@@ -29,3 +29,7 @@ recordings/
 .DS_Store
 Thumbs.db
 EOF
+
+*.xcf
+*.png
+docs/

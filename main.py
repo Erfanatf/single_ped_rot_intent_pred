@@ -3,6 +3,7 @@ import time
 import yaml
 import argparse
 import cv2
+import os
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
 
@@ -10,7 +11,8 @@ from extractors.mediapipe_full import MediaPipeFullExtractor
 from extractors.yolo_full import YOLOFullExtractor
 from utils.threaded_detector import ThreadedDetector
 from utils.ukf import UKF1D
-from utils.kalman import KeypointTrackerCoordinator   # <-- new
+from utils.kalman import KeypointTrackerCoordinator
+from utils.mjpeg_reader import MJPEGReader
 
 from features.torso_pelvis_torsion import TorsoPelvisTorsion
 from features.foot_progression import FootProgressionDifference
@@ -33,12 +35,55 @@ def load_config(path):
         return yaml.safe_load(f)
 
 class MainController:
-    def __init__(self, config, model):
+    def __init__(self, config, model, source_override=None, user=None, password=None):
         self.config = config
-        self.cap = cv2.VideoCapture(config.get('camera_id', 0))
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, config['frame_width'])
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config['frame_height'])
 
+        # --- Determine source type (webcam, video file, or network stream) ---
+        if source_override is not None:
+            source = str(source_override)
+        else:
+            source = str(config.get('camera_id', 0))
+
+        network_prefixes = ('http://', 'https://', 'rtsp://', 'rtmp://')
+        self.is_network = source.startswith(network_prefixes)
+        self.mjpeg_reader = None   # only used for HTTP MJPEG streams
+
+        if self.is_network:
+            # --- Temporarily clear ALL proxy environment variables ---
+            old_env = {}
+            for var in ('http_proxy', 'https_proxy', 'all_proxy', 'no_proxy',
+                        'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY'):
+                old_env[var] = os.environ.pop(var, None)
+
+            if source.startswith(('http://', 'https://')):
+                # Use our reliable MJPEG reader for HTTP streams
+                print(f"Opening MJPEG stream: {source}")
+                self.mjpeg_reader = MJPEGReader(source, username=user, password=password)
+                self.mjpeg_reader.start()
+                self.cap = None   # we don't use OpenCV for this stream
+                self.is_video_file = False
+            else:
+                # RTSP/RTMP streams still use OpenCV (with proxy cleared)
+                self.cap = cv2.VideoCapture(source)
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                self.is_video_file = False
+
+            # Restore proxy settings for other parts of the program
+            for var, value in old_env.items():
+                if value is not None:
+                    os.environ[var] = value
+
+        elif source.isdigit():
+            camera_id = int(source)
+            self.cap = cv2.VideoCapture(camera_id)
+            self.is_video_file = False
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, config['frame_width'])
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config['frame_height'])
+        else:
+            self.cap = cv2.VideoCapture(source)
+            self.is_video_file = True
+
+        # --- Rest of init (unchanged) ---
         if model == 'mediapipe':
             extractor = MediaPipeFullExtractor(config)
         else:
@@ -49,7 +94,6 @@ class MainController:
                                          config['display_downscale'])
         self.detector.start()
 
-        # ---------- Optional keypoint Kalman filter ----------
         self.kp_filter = None
         if config.get('keypoint_filter', False):
             self.kp_filter = KeypointTrackerCoordinator(
@@ -59,7 +103,6 @@ class MainController:
                 max_missing=config.get('keypoint_max_missing', 10)
             )
 
-        # UKF per feature (kept as is)
         ukf_torsion = UKF1D(process_noise=0.01, measurement_noise=0.1)
         ukf_foot_diff = UKF1D(process_noise=0.01, measurement_noise=0.1)
         ukf_step_width = UKF1D(process_noise=0.001, measurement_noise=0.01)
@@ -70,7 +113,7 @@ class MainController:
         ukf_hip_right = UKF1D(process_noise=0.01, measurement_noise=0.1)
         ukf_shoulder = UKF1D(process_noise=0.01, measurement_noise=0.1)
         ukf_head = UKF1D(process_noise=0.01, measurement_noise=0.1)
-        ukf_com = UKF1D(process_noise=0.01, measurement_noise=0.001)    
+        ukf_com = UKF1D(process_noise=0.01, measurement_noise=0.001)
         ukf_arm = UKF1D(process_noise=0.01, measurement_noise=0.1)
 
         self.features = [
@@ -103,9 +146,19 @@ class MainController:
         QApplication.instance().aboutToQuit.connect(self.cleanup)
 
     def update(self):
-        ret, frame = self.cap.read()
+        # Get frame from the appropriate source
+        if self.mjpeg_reader is not None:
+            ret, frame = self.mjpeg_reader.read()
+        else:
+            ret, frame = self.cap.read()
+
         if not ret:
+            if self.is_video_file:
+                print("Video ended.")
+            elif self.is_network:
+                print("Network stream interrupted.")
             return
+
         ds = self.config.get('display_downscale', 1.0)
         if ds != 1.0:
             display_frame = cv2.resize(frame, None, fx=ds, fy=ds)
@@ -116,16 +169,10 @@ class MainController:
         self.detector.update_frame(frame)
         _, img_lm, world_lm, vis = self.detector.get_latest_data()
 
-        # Apply keypoint filter if enabled
         if self.kp_filter and world_lm:
             world_lm = self.kp_filter.step(world_lm)
 
-        # The dashboard’s compute_features uses detector.get_latest_data() internally.
-        # We must give it the filtered landmarks somehow.
-        # Modify dashboard to accept an optional override dict.
-        # Simple solution: set a variable that dashboard reads.
-        self.dashboard.filtered_world_lm = world_lm   # custom attribute
-
+        self.dashboard.filtered_world_lm = world_lm
         self.dashboard.camera_widget.show_frame(display_frame, img_lm)
         if self.logger and self.dashboard.current_features:
             self.logger.log(time.time(), self.dashboard.current_features)
@@ -134,21 +181,29 @@ class MainController:
 
     def cleanup(self):
         self.detector.stop()
-        self.cap.release()
+        if self.mjpeg_reader:
+            self.mjpeg_reader.release()
+        if self.cap:
+            self.cap.release()
         if self.logger:
             self.logger.close()
         if self.recorder:
             self.recorder.stop()
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='config.yaml')
-    parser.add_argument('--model', choices=['mediapipe', 'yolo'])
+    parser = argparse.ArgumentParser(description="Human Rotation Intent Detector")
+    parser.add_argument('--config', type=str, default='config.yaml', help='Path to config file')
+    parser.add_argument('--model', choices=['mediapipe', 'yolo'], help='Override model from config')
+    parser.add_argument('--source', type=str, default=None,
+                        help='Video source: camera index (0), video file path (walk.mp4), or network URL (http://...)')
+    parser.add_argument('--user', type=str, default=None, help='Username for network stream authentication')
+    parser.add_argument('--password', type=str, default=None, help='Password for network stream authentication')
     args = parser.parse_args()
     config = load_config(args.config)
     model = args.model or config.get('model', 'mediapipe')
+
     app = QApplication(sys.argv)
-    controller = MainController(config, model)
+    controller = MainController(config, model, source_override=args.source, user=args.user, password=args.password)
     sys.exit(app.exec())
 
 if __name__ == '__main__':
