@@ -11,7 +11,7 @@ inference_height: 256
 # Model (overridden by CLI)
 model: "mediapipe"
 mediapipe:
-  model_path: "pose_landmarker_heavy.task"
+  model_path: "pose_landmarker_lite.task"
 yolo:
   model_path: "yolov8n-pose.pt"
 
@@ -28,6 +28,9 @@ posture_update_interval: 0.5   # seconds between posture re‑evaluation
 save_history: true             # save feature time‑series to CSV
 record_screen: true           # record the whole dashboard as video
 output_dir: "./recordings"
+
+# Kinematics
+kinematics_scale: 1.0
 
 # UI
 show_full_skeleton: true
@@ -51,3 +54,8 @@ fusion_weights:
   head_yaw: 0
   com_lateral_shift: 0.0
   arm_swing_asymmetry: 0.0
+
+# Omega sender
+send_omega: true
+omega_udp_port: 9999
+omega_udp_host: "127.0.0.1"

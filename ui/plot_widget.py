@@ -3,10 +3,11 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout
 import time
 
 class PlotWidget(QWidget):
-    def __init__(self, parent=None, feature_names=None, buffer_duration=4.0):
+    def __init__(self, parent=None, feature_names=None, buffer_duration=4.0, cols=2):
         super().__init__(parent)
         self.feature_names = feature_names or []
         self.buffer_duration = buffer_duration
+        self.cols = cols
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -29,10 +30,9 @@ class PlotWidget(QWidget):
         self.curves_value = []      # orange curves (right axis)
         self.vb2_list = []          # second ViewBox for raw values
 
-        cols = 3
         for i, name in enumerate(self.feature_names):
-            row = i // cols
-            col = i % cols
+            row = i // self.cols
+            col = i % self.cols
             plot = self.win.addPlot(title=name.replace('_', ' ').title(), row=row, col=col)
             plot.showGrid(x=True, y=True, alpha=0.3)
             plot.setLabel('left', 'Likelihood', color='cyan')

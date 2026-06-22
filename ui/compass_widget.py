@@ -10,10 +10,14 @@ class CompassWidget(QWidget):
         self.raw_score = 0.0          # negative = right, positive = left
         self.intent_text = "Straight"
         self.confidence = 0.0
-
-    def update_direction(self, raw_score: float):
+        self.angular_velocity = 0.0   # rad/s
+        self.angular_acceleration = 0.0  # rad/s²
+        
+    def update_direction(self, raw_score: float, ang_vel: float, ang_acc: float):
         """Update with continuous raw score from fusion."""
         self.raw_score = max(-1.0, min(1.0, raw_score))
+        self.angular_velocity = ang_vel
+        self.angular_acceleration = ang_acc
         # Determine intent label
         if abs(self.raw_score) < 0.1:
             self.intent_text = "Straight"
@@ -32,7 +36,7 @@ class CompassWidget(QWidget):
 
         w, h = self.width(), self.height()
         cx, cy = w // 2, h // 2
-        radius = min(cx, cy) - 20
+        radius = min(cx, cy) - 30
 
         # Background circle
         painter.setPen(QPen(QColor("#3a3a4c"), 3))
@@ -60,5 +64,12 @@ class CompassWidget(QWidget):
         # Text
         painter.setFont(QFont("Arial", 12, QFont.Bold))
         painter.setPen(QPen(QColor("white")))
-        text = f"{self.intent_text} ({self.confidence:.2f})"
-        painter.drawText(QRect(10, h - 30, w - 20, 20), Qt.AlignCenter, text)
+        intent_rect = QRect(10, 10, w - 20, 30)
+        painter.drawText(intent_rect, Qt.AlignCenter, f"{self.intent_text} ({self.confidence:.2f})")
+
+        # Kinematics text
+        painter.setFont(QFont("Arial", 10))
+        painter.setPen(QPen(QColor("#aaaaaa")))
+        kin_text = f"ω: {self.angular_velocity:+.3f} rad/s   α: {self.angular_acceleration:+.3f} rad/s²"
+        kin_rect = QRect(10, h - 40, w - 20, 30)
+        painter.drawText(kin_rect, Qt.AlignCenter, kin_text)

@@ -9,6 +9,9 @@ from PySide6.QtCore import QTimer
 
 from extractors.mediapipe_full import MediaPipeFullExtractor
 from extractors.yolo_full import YOLOFullExtractor
+from ui.sim_view_widget import SimViewWidget
+from utils.omega_sender import OmegaSender
+from utils.sim_listener import SimListener
 from utils.threaded_detector import ThreadedDetector
 from utils.ukf import UKF1D
 from utils.kalman import KeypointTrackerCoordinator
@@ -29,6 +32,7 @@ from buffer.rolling_buffer import RollingBuffer
 from ui.dashboard import Dashboard
 from recording.logger import FeatureLogger
 from recording.screen_recorder import ScreenRecorder
+from utils.kinematics import RotationKinematics
 
 def load_config(path):
     with open(path, 'r') as f:
@@ -113,8 +117,8 @@ class MainController:
         ukf_hip_right = UKF1D(process_noise=0.01, measurement_noise=0.1)
         ukf_shoulder = UKF1D(process_noise=0.01, measurement_noise=0.1)
         ukf_head = UKF1D(process_noise=0.01, measurement_noise=0.1)
-        ukf_com = UKF1D(process_noise=0.01, measurement_noise=0.001)
-        ukf_arm = UKF1D(process_noise=0.01, measurement_noise=0.1)
+        # ukf_com = UKF1D(process_noise=0.01, measurement_noise=0.001)
+        # ukf_arm = UKF1D(process_noise=0.01, measurement_noise=0.1)
 
         self.features = [
             TorsoPelvisTorsion(ukf=ukf_torsion),
@@ -127,12 +131,23 @@ class MainController:
             # HipRotation('right', ukf=ukf_hip_right),
             ShoulderYaw(ukf=ukf_shoulder),
             HeadYaw(ukf=ukf_head),
-            ComShift(ukf=ukf_com),
-            ArmSwingAsymmetry(ukf=ukf_arm),
+            # ComShift(ukf=ukf_com),
+            # ArmSwingAsymmetry(ukf=ukf_arm),
         ]
 
+        kin_scale = config.get('kinematics_scale', 2.0)
+        self.kinematics = RotationKinematics(scale=kin_scale)
+        self.omega_sender = OmegaSender()
+        if config.get('send_omega', False):
+            self.omega_sender.start()
+            
         self.buffer = RollingBuffer(config['buffer_duration'])
-        self.dashboard = Dashboard(self.detector, self.features, self.buffer, config)
+        self.dashboard = Dashboard(self.detector, self.features, self.buffer, config, kinematics=self.kinematics)
+        self.sim_listener = SimListener()
+        self.sim_listener.start()
+        self.sim_view = SimViewWidget()
+        self.dashboard.add_sim_view(self.sim_view)
+        
         self.dashboard.show()
 
         self.logger = FeatureLogger(config['output_dir']) if config.get('save_history') else None
@@ -175,9 +190,17 @@ class MainController:
         self.dashboard.filtered_world_lm = world_lm
         self.dashboard.camera_widget.show_frame(display_frame, img_lm)
         if self.logger and self.dashboard.current_features:
-            self.logger.log(time.time(), self.dashboard.current_features)
+            ang_vel, ang_acc = self.dashboard.latest_kinematics
+            self.omega_sender.update_omega(ang_vel)   # send the current ω
+            extra = {'angular_velocity': ang_vel, 'angular_acceleration': ang_acc}
+            self.logger.log(time.time(), self.dashboard.current_features, extra=extra)
         if self.recorder:
             self.recorder.record_frame()
+        
+        # Update simulator view
+        state = self.sim_listener.get_state()
+        if state:
+            self.sim_view.update_state(state)
 
     def cleanup(self):
         self.detector.stop()
