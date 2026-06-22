@@ -1,7 +1,7 @@
 # Single Pedestrian Rotation Intent Predictor
 
 Real‑time detection of a pedestrian’s **rotation intention** (standing straight, turning left, or turning right) from a single RGB camera.  
-The system extracts full‑body keypoints, computes 12 biomechanical features, filters them, fuses the results with a weighted probabilistic engine, and displays everything on a live dashboard with a compass and interactive controls.
+The system extracts full‑body keypoints, computes 10 biomechanical features, filters them, fuses the results with a weighted probabilistic engine, and displays everything on a live dashboard with a compass and interactive controls.
 
 **📖 Navigate through this guide:**  
 [Overview](#overview) · [Architecture](#architecture) · [Directory Structure](#directory-structure) · [Installation](#installation) · [Usage](#usage) · [Configuration](#configuration) · [Dashboard & UI](#dashboard--ui) · [Biomechanical Features](#biomechanical-features) · [Calibration & Adaptation](#calibration--adaptation) · [Fusion Engine](#fusion-engine) · [Recording & Logging](#recording--logging) · [Connectivity](#connectivity) · [Tuning Guidelines](#tuning-guidelines) · [Troubleshooting](#troubleshooting) · [References](#references)
@@ -26,7 +26,7 @@ The system is self‑calibrating, handles different camera viewpoints, and runs 
 graph TD
     A[Camera / Video / Network] --> B[ThreadedDetector]
     B --> C[Keypoint Filter - optional]
-    C --> D[12 Feature Extractors]
+    C --> D[10 Feature Extractors]
     D --> E[Rolling Buffer - 4s]
     E --> F[Intent Fusion]
     F --> G[Dashboard]
@@ -41,7 +41,7 @@ All heavy processing runs in a **background thread**, so the UI stays responsive
 
 **Key components (click to jump):**  
 - [Pose extraction](#installation) – MediaPipe (default) or YOLO  
-- [Features](#biomechanical-features) – 12 biomechanical signals  
+- [Features](#biomechanical-features) – 10 biomechanical signals  
 - [Fusion](#fusion-engine) – weighted probabilistic voter  
 - [Dashboard](#dashboard--ui) – real‑time visualisation  
 
@@ -65,7 +65,7 @@ single_ped_rot_intent_pred/
 │   ├── ukf.py                  # 1D Unscented Kalman Filter
 │   ├── kalman.py               # keypoint‑level Kalman filter bank
 │   └── mjpeg_reader.py         # custom MJPEG network stream reader
-├── features/                   # 12 biomechanical feature classes
+├── features/                   # 10 biomechanical feature classes
 │   ├── base_feature.py
 │   ├── torso_pelvis_torsion.py
 │   ├── foot_progression.py
@@ -311,7 +311,7 @@ Press the **🔄 Calibrate Neutral** button. The system collects 2 seconds of 
 
 ## Fusion Engine
 
-The fusion module combines the 12 individual feature signals into a single **continuous net score** and a **discrete intent label**.
+The fusion module combines the 10 individual feature signals into a single **continuous net score** and a **discrete intent label**.
 
 ```mermaid
 flowchart LR
