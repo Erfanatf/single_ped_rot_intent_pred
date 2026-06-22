@@ -400,7 +400,7 @@ flowchart TD
     D -->|Yes| E[Network Stream]
     D -->|No| F[Video File]
     E --> G{HTTP MJPEG?}
-    G -->|Yes| H[MJPEGReader<br/>(proxy bypass, mDNS)]
+    G -->|Yes| H[MJPEGReader<br/>proxy bypass, mDNS]
     G -->|No| I[OpenCV FFmpeg<br/>RTSP/RTMP]
 ```
 
