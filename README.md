@@ -122,7 +122,7 @@ pip install -r requirements.txt
 
 ### 4. Model files
 The repository includes the required models:
-- `pose_landmarker_lite.task` (MediaPipe)  
+- `pose_landmarker.task` (MediaPipe, either option: lite, full, heavy. For the best accuracy heavy is recommended preserving real-time performance in detection)  
 - `yolov8n-pose.pt` (YOLO)  
 
 If you prefer to download them manually:
@@ -166,7 +166,7 @@ python main.py --config my_experiment.yaml --model mediapipe
 ```
 
 ### Exit
-Press `Ctrl+C` in the terminal, or simply close the dashboard window.
+Simply close the dashboard window, DO NOT use keyboard intrupt, this cause failure in saving dasboard screen record.
 
 ---
 
