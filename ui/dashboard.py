@@ -2,7 +2,7 @@ import math
 import sys
 import time
 from PySide6.QtWidgets import (QApplication, QMainWindow, QDockWidget, QPushButton,
-                               QWidget, QVBoxLayout, QSplitter)
+                               QWidget, QVBoxLayout, QSplitter, QLabel)
 from PySide6.QtCore import Qt, QTimer
 from .camera_widget import CameraWidget
 from .plot_widget import PlotWidget
@@ -40,6 +40,7 @@ QSplitter::handle {
 class Dashboard(QMainWindow):
     def __init__(self, detector, feature_extractors, buffer, config, kinematics=None):
         super().__init__()
+        self.feature_loop_time = 0.0   # seconds
         self.detector = detector
         self.feature_extractors = feature_extractors
         self.buffer = buffer
@@ -109,6 +110,11 @@ class Dashboard(QMainWindow):
         posture_dock.setWidget(self.posture_widget)
         self.addDockWidget(Qt.BottomDockWidgetArea, posture_dock)
 
+        # ---- Performance label in status bar ----
+        self.perf_label = QLabel("Feature loop: -- ms")
+        self.perf_label.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        self.statusBar().addPermanentWidget(self.perf_label)
+
         # ---- Feature computation timer ----
         self.feature_timer = QTimer()
         self.feature_timer.timeout.connect(self.compute_features)
@@ -128,7 +134,6 @@ class Dashboard(QMainWindow):
 
     def add_sim_view(self, widget):
         """Replace the placeholder with the actual sim view widget."""
-        # Find the placeholder index
         idx = self.central_splitter.indexOf(self.sim_view_placeholder)
         self.central_splitter.replaceWidget(idx, widget)
         self.sim_view_placeholder = widget
@@ -156,10 +161,14 @@ class Dashboard(QMainWindow):
         self.calibrate_btn.setEnabled(True)
 
     def compute_features(self):
+        t_start = time.perf_counter()
+
         _, img_lm, world_lm, vis = self.detector.get_latest_data()
         if self.filtered_world_lm is not None:
             world_lm = self.filtered_world_lm
         if not world_lm:
+            self.feature_loop_time = time.perf_counter() - t_start
+            self.perf_label.setText(f"Feature loop: {self.feature_loop_time*1000:.1f} ms")
             return
 
         feature_data = {}
@@ -178,6 +187,9 @@ class Dashboard(QMainWindow):
             )
             if time.time() - self.calibration_start_time > 2.0:
                 self.finish_calibration()
+            elapsed = time.perf_counter() - t_start
+            self.feature_loop_time = elapsed
+            self.perf_label.setText(f"Feature loop: {elapsed*1000:.1f} ms")
             return
 
         self.current_features = feature_data
@@ -215,6 +227,10 @@ class Dashboard(QMainWindow):
             self.posture_widget.update_posture(posture)
         except Exception as e:
             print(f"Posture update failed: {e}")
+
+        elapsed = time.perf_counter() - t_start
+        self.feature_loop_time = elapsed
+        self.perf_label.setText(f"Feature loop: {elapsed*1000:.1f} ms")
 
     def _update_weight(self, name, value):
         self.fusion.weights[name] = value

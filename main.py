@@ -194,6 +194,15 @@ class MainController:
             self.omega_sender.update_omega(ang_vel)   # send the current ω
             extra = {'angular_velocity': ang_vel, 'angular_acceleration': ang_acc}
             self.logger.log(time.time(), self.dashboard.current_features, extra=extra)
+
+            # Print performance every ~1 s
+            if not hasattr(self, '_perf_counter'):
+                self._perf_counter = 0
+            self._perf_counter += 1
+            if self._perf_counter % 30 == 0:
+                feat_time = self.dashboard.feature_loop_time * 1000
+                # print(f"[Predictor] feature loop: {feat_time:.1f} ms")
+
         if self.recorder:
             self.recorder.record_frame()
         
